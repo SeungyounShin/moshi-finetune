@@ -288,9 +288,9 @@ def main():
             text_sampling_params=sampling_params,
             audio_sampling_params=sampling_params,
         )
-        # gen_tokens = torch.cat([prompt_tokens, gen_tokens], dim=-1).cpu().numpy()
+        gen_tokens = torch.cat([prompt_tokens, gen_tokens], dim=-1).cpu().numpy()
         gen_tokens = undelay_tokens(gen_tokens, moshi_lm.delays)
-        gen_tokens = gen_tokens.cpu().numpy()
+        gen_tokens = gen_tokens #.cpu().numpy()
 
         # Save the generated tokens
         for i in range(batch.input_ids.shape[0]):

@@ -36,49 +36,55 @@ def main(args):
     audio_dialogue_names = [os.path.splitext(f)[0] for f in os.listdir(args.tokenized_audio_dir)]
     missing_text_dialogue_names = set(audio_dialogue_names) - set(text_dialogue_names)
     missing_audio_dialogue_names = set(text_dialogue_names) - set(audio_dialogue_names)
+
     if missing_text_dialogue_names:
         print(f"Missing tokenized text for {len(missing_text_dialogue_names)} dialogues.")
-        open("missing_text_dialogue_names.txt", "w").write("\n".join(missing_text_dialogue_names))
+        open("missing_text_dialogue_names.txt", "w").write(
+            "\n".join(missing_text_dialogue_names)
+        )
+
     if missing_audio_dialogue_names:
         print(f"Missing tokenized audio for {len(missing_audio_dialogue_names)} dialogues.")
-        open("missing_audio_dialogue_names.txt", "w").write("\n".join(missing_audio_dialogue_names))
-    if missing_text_dialogue_names or missing_audio_dialogue_names:
-        print("Both text and audio tokenized dialogues should match.")
-        return
+        open("missing_audio_dialogue_names.txt", "w").write(
+            "\n".join(missing_audio_dialogue_names)
+        )
+
+    # 교집합만 추출
+    common_dialogue_names = set(text_dialogue_names).intersection(set(audio_dialogue_names))
+    dialogue_names = sorted(list(common_dialogue_names))
 
     os.makedirs(os.path.dirname(args.output_prefix), exist_ok=True)
-    dialogue_names = text_dialogue_names
+
     num_dialogues = len(dialogue_names)
     num_parquets = -(-num_dialogues // args.num_examples_per_parquet)
 
+    print(f"Processing {num_dialogues} dialogues into {num_parquets} parquet files.")
     for i in range(num_parquets):
         dials_per_parquet = dialogue_names[
             i * args.num_examples_per_parquet : (i + 1) * args.num_examples_per_parquet
         ]
 
-        # load the tokenized text and audio data
         data = []
         for dialogue_name in tqdm(
             dials_per_parquet, desc=f"Processing parquet {i + 1}/{num_parquets}"
         ):
             text_path = os.path.join(args.tokenized_text_dir, f"{dialogue_name}.npz")
-            text_ids = np.load(text_path)
             audio_path = os.path.join(args.tokenized_audio_dir, f"{dialogue_name}.npz")
+
+            text_ids = np.load(text_path)
             audio_ids = np.load(audio_path)
             data.append(
                 {
-                    "dialogue_id": os.path.join(
-                        args.output_prefix, dialogue_name
-                    ),  # unique identifier
+                    "dialogue_id": os.path.join(args.output_prefix, dialogue_name),
                     "A": merge_text_audio(text_ids["A"], audio_ids["A"], args.text_padding_id),
                     "B": merge_text_audio(text_ids["B"], audio_ids["B"], args.text_padding_id),
                 }
             )
 
-        # save the merged data
         df = pd.DataFrame(data)
         output_path = f"{args.output_prefix}-{i + 1:03d}-of-{num_parquets:03d}.parquet"
         df.to_parquet(output_path, index=False)
+
 
 
 if __name__ == "__main__":

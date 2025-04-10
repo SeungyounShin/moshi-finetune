@@ -84,7 +84,8 @@ Use the following script to convert the text for all json files in the directory
 ```bash
 uv run -m tools.tokenize_text \
     --word_transcript data/spokenwoz_sample/text \
-    --output_dir data/spokenwoz_sample/tokenized_text
+    --output_dir data/spokenwoz_sample/tokenized_text \
+    --text_tokenizer_repo 
 ```
 
 This will create `data/spokenwoz_sample/tokenized_text/*.npz`. Each npz file contains text tokens for A and B:
@@ -99,10 +100,10 @@ This will create `data/spokenwoz_sample/tokenized_text/*.npz`. Each npz file con
 If you want to use a text tokenizer other than the one provided by Kyutai, specify it by using the `--text_tokenizer_repo` and `--text_tokenizer_name` arguments. Note that only SentencePiece models are supported as tokenizers. For example, J-Moshi used the following settings:
 ```bash
 uv run -m tools.tokenize_text \
-    --word_transcript /path/to/japanese_corpus/text \
-    --output_dir /path/to/japanese_corpus/tokenized_text \
-    --text_tokenizer_repo rinna/japanese-gpt2-medium \
-    --text_tokenizer_name spiece.model \
+    --word_transcript /raid/channel/tts/k-moshi-ds/text \
+    --output_dir data/korean_sample/tokenized_text \
+    --text_tokenizer_repo Seungyoun/ko-tokenizer \
+    --text_tokenizer_name tokenizer.model \
     --text_padding_id 3 \
     --end_of_text_padding_id 0 \
     --no_whitespace_before_word
@@ -116,9 +117,9 @@ uv run -m tools.tokenize_text \
 Concatenate sequences of audio token and text token to create a ready-to-use dataset for finetuning.
 ```bash
 uv run -m tools.prepare_dataset \
-    --tokenized_text_dir data/spokenwoz_sample/tokenized_text \
-    --tokenized_audio_dir data/spokenwoz_sample/tokenized_audio \
-    --output_prefix processed_data/spokenwoz_sample/train
+    --tokenized_text_dir data/korean_sample/tokenized_text \
+    --tokenized_audio_dir data/korean_sample/tokenized_audio \
+    --output_prefix processed_data/korean_sample/train
 ```
 This command creates `processed_data/spokenwoz_sample/train-001-of-001.parquet`. One parquet file can contain up to 100,000 dialogues. The structure of the dataset is as follows:
 ```python
@@ -168,10 +169,17 @@ uv run accelerate launch \
     --use_deepspeed \
     --deepspeed_config_file ds_configs/zero3-fp16-warmlr-act_ckpt.json \
     finetune.py \
-        --output_dir "output/moshiko-finetuned" \
-        --train_data_files "processed_data/spokenwoz_sample/train-*.parquet" \
-        --model_dir "init_models/moshiko-both_streams-float32" \
-        ...
+    --output_dir output/moshiko-finetuned \
+    --train_data_files processed_data/korean_sample/train-*.parquet \
+    --model_dir init_models/moshiko-both_streams-float32 \
+    --report_to wandb \
+    --per_device_train_batch_size 8 \
+    --per_device_eval_batch_size 8 \
+    --gradient_accumulation_steps 8 \
+    --activation_checkpointing \
+    --max_length 2048 \
+    --model_user_stream \
+    --num_train_epochs 50
 ```
 Currently, training without DeepSpeed is not supported, so be sure to specify `--use_deepspeed` and `--deepspeed_config_file`. Batch size, learning rate, weights of loss for each token, etc. can be specified as arguments to `finetune.py`. Use `uv run finetune.py --help` for details.
 
@@ -204,15 +212,15 @@ You can generate a continuation from a few seconds of prompt contained in the da
 model_dir="output/moshiko-finetuned/step_10000_fp32"
 uv run accelerate launch \
     --num_machines 1 \
-    --num_processes 4 \
+    --num_processes 8 \
     generate.py \
         --output_dir "${model_dir}/continuation" \
         --model_dir "${model_dir}" \
-        --eval_data_files "processed_data/spokenwoz_sample/test-*.parquet" \
+        --eval_data_files "processed_data/korean_sample/train-*.parquet" \
         --prompt_length 125 \
         --generation_length 250 \
         --temperature 0.8 \
-        ...
+        --num_examples 10
 ```
 Specify both the length of the prompt and the generation using `--prompt_length` and `--generation_length` respectively. For each sample in the dataset, the part from the beginning to the length specified by `--prompt_length` in the sample is input to the model. The unit is one frame of Mimi (80ms). Other settings such as batch size and temperature parameter can be specified as arguments to `generate.py`. Use `uv run generate.py --help` for details.
 
