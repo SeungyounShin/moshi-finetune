@@ -50,8 +50,9 @@ For specific examples of the data, refer to `data/spokenwoz_sample/audio/*.wav`.
 Use the following script to convert all wav files in the directory to discrete tokens using the Mimi encoder:
 ```bash
 uv run -m tools.tokenize_audio \
-    --audio_dir data/spokenwoz_sample/audio \
-    --output_dir data/spokenwoz_sample/tokenized_audio
+  --audio_dir /raid/channel/tts/k-moshi-ds/audio \
+  --output_dir data/korean_sample/tokenized_audio \
+  --num_workers 8
 ```
 
 This will create `data/spokenwoz_sample/tokenized_audio/*.npz`. Each npz file contains audio tokens for A and B:
